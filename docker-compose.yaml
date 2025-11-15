@@ -1,0 +1,28 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:15
+    container_name: nutri_db
+    environment:
+      POSTGRES_USER: nutri_user
+      POSTGRES_PASSWORD: nutri_pass
+      POSTGRES_DB: nutri_tracker
+      TZ: Asia/Kolkata
+    ports:
+      - "5432:5432"
+    volumes:
+      - nutri_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: nutri_redis
+    ports:
+      - "6380:6379"
+    command: [ "redis-server", "--save", "", "--appendonly", "no" ]
+    volumes:
+      - redis_data:/data
+
+volumes:
+  nutri_data:
+  redis_data:
