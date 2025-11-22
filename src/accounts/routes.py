@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from passlib.context import CryptContext
+from ..accounts.user_roles import UserRole
 import asyncio
 
 from src.db.models import User
@@ -14,17 +15,33 @@ from ..middleware.verification import send_verification_email, verify_otp, delet
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+admin_ip = os.getenv("ADMIN_IP")
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-async def register_user(payload: UserCreate, session: AsyncSession = Depends(get_db)):
-    exists = await session.scalar(select(User).where((User.email == payload.email) | (User.username == payload.username)))
+async def register_user(
+    payload: UserCreate,
+    request: Request,
+    session: AsyncSession = Depends(get_db)
+):
+    exists = await session.scalar(
+        select(User).where(
+            (User.email == payload.email) | (User.username == payload.username)
+        )
+    )
     if exists:
         raise HTTPException(status_code=409, detail="Username or email already registered")
+
+    user_ip = request.client.host
+    if user_ip == admin_ip:
+        assigned_role = UserRole.ADMIN
+    else:
+        assigned_role = UserRole.USER
     hashed = pwd_context.hash(payload.password)
     user = User(
         username=payload.username,
         email=payload.email,
         password=hashed,
+        role=assigned_role
     )
     session.add(user)
     await session.commit()
