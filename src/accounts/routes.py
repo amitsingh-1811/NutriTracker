@@ -1,12 +1,10 @@
 import os
-
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from passlib.context import CryptContext
 from ..accounts.user_roles import UserRole
 import asyncio
-
 from src.db.models import User
 from src.db.database import get_db
 from .schemas import UserCreate, UserRead, LoginRes, LoginPayload, OTPVerifyPayload, RegenerationOtpPayload
@@ -59,7 +57,11 @@ async def login_user(payload: LoginPayload, response: Response, request: Request
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Verify your email first")
     if not pwd_context.verify(payload.password, user.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="email or password is incorrect")
-    access_token = create_access_token({"sub": user.email})
+    access_token = create_access_token({
+                        "sub": str(user.id),
+                        "email": user.email,
+                        "role": user.role.value
+                    })
     response.set_cookie(
         key="access_token",
         value=access_token,
