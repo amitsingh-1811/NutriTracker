@@ -1,11 +1,10 @@
 import os
-
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from passlib.context import CryptContext
+from ..accounts.user_roles import UserRole
 import asyncio
-
 from src.db.models import User
 from src.db.database import get_db
 from .schemas import UserCreate, UserRead, LoginRes, LoginPayload, OTPVerifyPayload, RegenerationOtpPayload
@@ -14,17 +13,33 @@ from ..middleware.verification import send_verification_email, verify_otp, delet
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+admin_ip = os.getenv("ADMIN_IP")
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-async def register_user(payload: UserCreate, session: AsyncSession = Depends(get_db)):
-    exists = await session.scalar(select(User).where((User.email == payload.email) | (User.username == payload.username)))
+async def register_user(
+    payload: UserCreate,
+    request: Request,
+    session: AsyncSession = Depends(get_db)
+):
+    exists = await session.scalar(
+        select(User).where(
+            (User.email == payload.email) | (User.username == payload.username)
+        )
+    )
     if exists:
         raise HTTPException(status_code=409, detail="Username or email already registered")
+
+    user_ip = request.client.host
+    if user_ip == admin_ip:
+        assigned_role = UserRole.ADMIN
+    else:
+        assigned_role = UserRole.USER
     hashed = pwd_context.hash(payload.password)
     user = User(
         username=payload.username,
         email=payload.email,
         password=hashed,
+        role=assigned_role
     )
     session.add(user)
     await session.commit()
@@ -42,7 +57,11 @@ async def login_user(payload: LoginPayload, response: Response, request: Request
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Verify your email first")
     if not pwd_context.verify(payload.password, user.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="email or password is incorrect")
-    access_token = create_access_token({"sub": user.email})
+    access_token = create_access_token({
+                        "sub": str(user.id),
+                        "email": user.email,
+                        "role": user.role.value
+                    })
     response.set_cookie(
         key="access_token",
         value=access_token,
