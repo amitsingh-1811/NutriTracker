@@ -42,6 +42,10 @@ async def create_ingredient(
     ingredient = Ingredient(
         name=payload.name.strip().lower(),
         calories_per_100g=payload.calories_per_100g,
+        carbs_per_100g=payload.carbs_per_100g,
+        protein_per_100g=payload.protein_per_100g,
+        fat_per_100g=payload.fat_per_100g,
+        fiber_per_100g=payload.fiber_per_100g,
         input_mode=payload.input_mode,
         is_active=payload.is_active,
     )

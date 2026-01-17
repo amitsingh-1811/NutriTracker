@@ -21,6 +21,10 @@ class IngredientSizeUpdate(BaseModel):
 class IngredientCreate(BaseModel):
     name: str
     calories_per_100g: Optional[float] = None
+    carbs_per_100g: Optional[float] = None
+    protein_per_100g: Optional[float] = None
+    fat_per_100g: Optional[float] = None
+    fiber_per_100g: Optional[float] = None
     input_mode: InputMode
     is_active: bool = True
     sizes: List[IngredientSizeCreate] = []
@@ -28,6 +32,10 @@ class IngredientCreate(BaseModel):
 class IngredientUpdate(BaseModel):
     name: Optional[str] = None
     calories_per_100g: Optional[float] = None
+    carbs_per_100g: Optional[float] = None
+    protein_per_100g: Optional[float] = None
+    fat_per_100g: Optional[float] = None
+    fiber_per_100g: Optional[float] = None
     input_mode: Optional[InputMode] = None
     is_active: Optional[bool] = None
     sizes: Optional[List[IngredientSizeCreate]] = None
@@ -36,6 +44,10 @@ class IngredientRead(BaseModel):
     id: int
     name: str
     calories_per_100g: Optional[float]
+    carbs_per_100g: Optional[float]
+    protein_per_100g: Optional[float]
+    fat_per_100g: Optional[float]
+    fiber_per_100g: Optional[float]
     input_mode: InputMode
     is_active: bool
 
