@@ -10,10 +10,6 @@ class NutritionItemInput(BaseModel):
 class NutritionCalculateRequest(BaseModel):
     items: List[NutritionItemInput]
 
-class NutritionItemResult(BaseModel):
-    ingredient_name: str
-    calories: float
-
 class NutritionCalculateResponse(BaseModel):
-    total_calories: float
-    items: Dict[str, float]
+    totals: Dict[str, float]  # calories, protein, fat, etc.
+    items: Dict[str, Dict[str, float]]

@@ -6,9 +6,14 @@ from src.db.models import Ingredient, IngredientSize
 from src.middleware.jwt_methods import get_current_user
 from src.nutritracker.schemas import (
     NutritionCalculateRequest,
-    NutritionCalculateResponse,
-    NutritionItemResult
+    NutritionCalculateResponse
 )
+from src.nutrition.utils import resolve_weight
+from src.nutrition.strategies.calories import CaloriesCalculator
+from src.nutrition.strategies.protein import ProteinCalculator
+from src.nutrition.strategies.fat import FatCalculator
+from src.nutrition.strategies.carbs import CarbsCalculator
+from src.nutrition.strategies.fiber import FiberCalculator
 
 router = APIRouter(
     prefix="/nutrition",
@@ -24,8 +29,17 @@ async def calculate_nutrition(
     session: AsyncSession = Depends(get_db),
     user=Depends(get_current_user)
 ):
-    total_calories = 0.0
-    results_map = {}
+
+    strategies = [
+        CaloriesCalculator(),
+        ProteinCalculator(),
+        FatCalculator(),
+        CarbsCalculator(),
+        FiberCalculator(),
+    ]
+
+    totals = {}
+    items = {}
 
     for item in payload.items:
         result = await session.execute(
@@ -35,47 +49,33 @@ async def calculate_nutrition(
             )
         )
         ingredient = result.scalar_one_or_none()
-
         if not ingredient:
             raise HTTPException(
                 status_code=404,
                 detail=f"Ingredient '{item.ingredient_name}' not found"
             )
 
-        calories = 0.0
-        if item.weight_g is not None:
-            calories = (item.weight_g * ingredient.calories_per_100g) / 100
-        elif item.count is not None and item.size_label is not None:
-            size_result = await session.execute(
-                select(IngredientSize).where(
-                    IngredientSize.ingredient_id == ingredient.id,
-                    func.lower(IngredientSize.label) == item.size_label.lower()
-                )
-            )
-            size = size_result.scalar_one_or_none()
-            if not size:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid size '{item.size_label}' for {ingredient.name}"
-                )
-
-            calories = (
-                item.count * size.weight_g * ingredient.calories_per_100g
-            ) / 100
-        else:
+        weight_g = await resolve_weight(item, ingredient, session)
+        if not weight_g:
             raise HTTPException(
                 status_code=400,
                 detail="Provide weight_g or count + size_label"
             )
 
-        calories = round(calories, 2)
-        total_calories += calories
-        if ingredient.name in results_map:
-            results_map[ingredient.name] += calories
-        else:
-            results_map[ingredient.name] = calories
+        name = ingredient.name
+        items.setdefault(name, {})
+
+        for strategy in strategies:
+            value = round(strategy.calculate(ingredient, weight_g), 2)
+            key = strategy.nutrition_type().value
+
+            items[name][key] = (
+                items[name].get(key, 0) + value
+            )
+
+            totals[key] = totals.get(key, 0) + value
 
     return NutritionCalculateResponse(
-        total_calories=round(total_calories, 2),
-        items=results_map
+        totals={k: round(v, 2) for k, v in totals.items()},
+        items=items
     )
